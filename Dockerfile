@@ -1,5 +1,6 @@
-# build image
-FROM centos:7 AS buildimg
+ARG PROXY_PORT=8888
+
+FROM docker.io/library/centos:7 AS build
 
 RUN yum install -y gcc make patch pcre-devel zlib-devel git && \
     cd /usr/src && \
@@ -9,24 +10,20 @@ RUN yum install -y gcc make patch pcre-devel zlib-devel git && \
     cat ../ngx_http_proxy_connect_module/patch/proxy_connect_rewrite_101504.patch | patch -p1 && \
     ./configure --prefix=/usr/local/nginx --add-module=../ngx_http_proxy_connect_module && \
     make && \
-    make install && \
-    cd /usr/local/nginx && \
-    rmdir logs && \
-    mkdir /var/log/nginx && \
-    ln -s /var/log/nginx logs
+    make install
+
 COPY nginx-whitelist.conf nginx-blacklist.conf /usr/local/nginx/conf/
 COPY nginx-blacklist.conf /usr/local/nginx/conf/nginx.conf
 
-# production image
-FROM alpine
-COPY --from=buildimg /usr/local/nginx /usr/local/nginx
-RUN apk add --update pcre libc6-compat && \
-    rm -rf /var/cache/apk/* && \
-    mkdir /var/log/nginx && \
-    cd /var/log/nginx && \
-    ln -s /dev/stdout access.log && \
-    ln -s /dev/stderr error.log
-CMD /usr/local/nginx/sbin/nginx
-EXPOSE 8888
-VOLUME /var/log/nginx
+FROM docker.io/library/alpine:3 AS product
 
+ENV PROXY_PORT=$PROXY_PORT
+
+RUN apk add --update pcre libc6-compat && \
+    rm -rf /var/cache/apk/*
+
+COPY --from=build /usr/local/nginx /usr/local/nginx
+
+EXPOSE $PROXY_PORT/tcp
+
+CMD /usr/local/nginx/sbin/nginx
