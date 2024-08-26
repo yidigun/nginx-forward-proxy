@@ -1,13 +1,20 @@
-ARG PROXY_PORT=8888
+FROM docker.io/yidigun/ubuntu-build:24.04 AS build
 
-FROM docker.io/library/centos:7 AS build
+ARG IMG_TAG=1.27.1
+ENV IMG_TAG=$IMG_TAG
 
-RUN yum install -y gcc make patch pcre-devel zlib-devel git && \
-    cd /usr/src && \
-    curl http://nginx.org/download/nginx-1.17.3.tar.gz | tar zxf - && \
-    git clone https://github.com/chobits/ngx_http_proxy_connect_module && \
-    cd nginx-1.17.3 && \
-    cat ../ngx_http_proxy_connect_module/patch/proxy_connect_rewrite_101504.patch | patch -p1 && \
+RUN apt-get -y update && \
+    DEBIAN_FRONTEND=noninteractive \
+        apt-get -y install libpcre3-dev zlib1g-dev && \
+    apt-get clean && \
+    mkdir /tmp/nginx && \
+    cd /tmp/nginx && \
+    curl https://nginx.org/download/nginx-${IMG_TAG}.tar.gz | \
+        tar zxf - && \
+    git clone https://github.com/chobits/ngx_http_proxy_connect_module.git && \
+    cd nginx-${IMG_TAG} && \
+    cat ../ngx_http_proxy_connect_module/patch/proxy_connect_rewrite_102101.patch | \
+        patch -p1 && \
     ./configure --prefix=/usr/local/nginx --add-module=../ngx_http_proxy_connect_module && \
     make && \
     make install
@@ -15,8 +22,9 @@ RUN yum install -y gcc make patch pcre-devel zlib-devel git && \
 COPY nginx-whitelist.conf nginx-blacklist.conf /usr/local/nginx/conf/
 COPY nginx-blacklist.conf /usr/local/nginx/conf/nginx.conf
 
-FROM docker.io/library/alpine:3 AS product
+FROM docker.io/library/alpine:latest AS product
 
+ARG PROXY_PORT=8888
 ENV PROXY_PORT=$PROXY_PORT
 
 RUN apk add --update pcre libc6-compat && \
@@ -24,6 +32,7 @@ RUN apk add --update pcre libc6-compat && \
 
 COPY --from=build /usr/local/nginx /usr/local/nginx
 
-EXPOSE $PROXY_PORT/tcp
+EXPOSE ${PROXY_PORT}/tcp
 
-CMD /usr/local/nginx/sbin/nginx
+CMD [ "/usr/local/nginx/sbin/nginx" ]
+
