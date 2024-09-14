@@ -45,7 +45,7 @@ $(TAG): $(BUILDER)
 	for t in $(EXTRA_TAGS); do \
 	  TAGS="$$TAGS -t $(REPO)/$(IMG_NAME):$$t"; \
 	done; \
-	CMD="docker --debug buildx build \
+	CMD="docker buildx build \
 	    --builder $(BUILDER) --platform "$(PLATFORM)" \
 	    --build-arg IMG_NAME=$(IMG_NAME) --build-arg IMG_TAG=$(IMG_TAG) \
 	    $$BUILD_ARGS $$PUSH $$TAGS \
